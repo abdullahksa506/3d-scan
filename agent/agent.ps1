@@ -1,17 +1,16 @@
 # ============================================================
-#  وكيل المعالجة المحلية — 3D Scan
-#  يربط موقعك على Render بكمبيوترك: ينبض بالحياة، يسحب مهام
-#  الصور، يشغّل RealityScan، ويرفع النموذج الناتج.
+#  Local processing agent - 3D Scan
+#  Connects your Render site to this computer: sends a heartbeat,
+#  pulls photo jobs, runs RealityScan, uploads the result model.
 #
-#  التشغيل: انقر نقرًا مزدوجًا على run-agent.bat
-#  (أو:  powershell -ExecutionPolicy Bypass -File agent.ps1)
+#  Run it by double-clicking run-agent.bat
 # ============================================================
 
-# ----------- الإعدادات: عدّل هذي الثلاثة فقط -----------
-$Server      = "https://YOUR-APP.onrender.com"   # رابط موقعك على Render
-$Token       = "PASTE-YOUR-AGENT-TOKEN-HERE"     # نفس قيمة AGENT_TOKEN في Render
+# ----------- SETTINGS: edit these three lines only -----------
+$Server      = "https://YOUR-APP.onrender.com"
+$Token       = "PASTE-YOUR-AGENT-TOKEN-HERE"
 $RealityScan = "C:\Program Files\Epic Games\RealityScan\RealityScan.exe"
-# --------------------------------------------------------
+# -------------------------------------------------------------
 
 $ErrorActionPreference = "Stop"
 $Work = Join-Path $PSScriptRoot "work"
@@ -20,64 +19,63 @@ $Headers = @{ Authorization = "Bearer $Token" }
 
 function Log($msg) { Write-Host ("[{0}] {1}" -f (Get-Date -Format "HH:mm:ss"), $msg) }
 
-# ---------- فحص تمهيدي: يتأكد أن الربط سليم قبل الانتظار ----------
+# ---------- Preflight: verify the link before waiting ----------
 function Preflight {
-  Log "فحص الإعدادات والاتصال…"
+  Log "Checking settings and connection..."
 
   if ($Server -match "YOUR-APP" -or [string]::IsNullOrWhiteSpace($Server)) {
-    Log "✗ لم تعدّل رابط الموقع. غيّر `$Server في أعلى agent.ps1."; return $false
+    Log "X  Server URL not set. Edit the Server line at the top of agent.ps1."; return $false
   }
   if ($Token -match "PASTE-YOUR" -or [string]::IsNullOrWhiteSpace($Token)) {
-    Log "✗ لم تلصق التوكن. انسخ AGENT_TOKEN من Render وضعه في `$Token."; return $false
+    Log "X  Token not set. Paste AGENT_TOKEN from Render into the Token line."; return $false
   }
   if (-not (Test-Path $RealityScan)) {
-    Log "⚠ لم أجد RealityScan في: $RealityScan"
-    Log "  عدّل `$RealityScan في الأعلى (المعالجة ستفشل بدونه، لكن سأكمل الاتصال)."
+    Log "!  RealityScan not found at: $RealityScan"
+    Log "   Fix the RealityScan line at the top (processing will fail without it, but I'll still test the link)."
   } else {
-    Log "✓ عُثر على RealityScan"
+    Log "OK RealityScan found"
   }
 
-  # 1) هل الخادم يعمل والميزة مفعّلة؟
+  # 1) Is the server up and the feature enabled?
   try {
     $st = Invoke-RestMethod -Uri "$Server/api/local/agent-status" -TimeoutSec 25
   } catch {
-    Log "✗ تعذّر الوصول للخادم: $Server"
-    Log "  تأكد أن الرابط صحيح وأن الخدمة على Render من نوع Web Service وتعمل."
+    Log "X  Cannot reach the server: $Server"
+    Log "   Check the URL and that the Render service is a running Web Service."
     return $false
   }
   if (-not $st.enabled) {
-    Log "✗ الخادم يعمل لكن AGENT_TOKEN غير مضبوط في Render."
-    Log "  أضف متغير البيئة AGENT_TOKEN في إعدادات الخدمة ثم أعد النشر."
+    Log "X  Server is up but AGENT_TOKEN is not set in Render."
     return $false
   }
-  Log "✓ الخادم متصل والميزة مفعّلة"
+  Log "OK Server reachable and feature enabled"
 
-  # 2) هل التوكن صحيح؟ (نبضة تجريبية)
+  # 2) Is the token correct? (test heartbeat)
   try {
     Invoke-RestMethod -Uri "$Server/api/agent/heartbeat" -Method Post -Headers $Headers -TimeoutSec 25 | Out-Null
   } catch {
-    Log "✗ التوكن غير صحيح — قيمة `$Token لا تطابق AGENT_TOKEN في Render."
+    Log "X  Wrong token - the Token value does not match AGENT_TOKEN in Render."
     return $false
   }
-  Log "✓ التوكن صحيح — الربط ناجح! 🟢"
-  Log "  افتح جوالك الآن؛ سترى «الكمبيوتر متصل» في تبويب المسح."
+  Log "OK Token valid - connection successful!"
+  Log "   Open your phone now; the Scan tab will show the computer as connected."
   return $true
 }
 
-Log "بدء الوكيل — الخادم: $Server"
+Log "Starting agent - server: $Server"
 if (-not (Preflight)) {
-  Log "توقف بسبب مشكلة في الإعداد أعلاه. صحّحها وأعد تشغيل run-agent.bat."
+  Log "Stopped due to a setup issue above. Fix it and re-run run-agent.bat."
   exit 1
 }
-Log "في انتظار المهام… (اترك هذه النافذة مفتوحة)"
+Log "Waiting for jobs... (keep this window open)"
 
 while ($true) {
   try {
-    # 1) نبضة حياة — يعرف الموقع أن الكمبيوتر متصل
+    # 1) heartbeat - tells the site the computer is online
     $beat = Invoke-RestMethod -Uri "$Server/api/agent/heartbeat" -Method Post -Headers $Headers -TimeoutSec 20
     if (-not $beat.hasJob) { Start-Sleep -Seconds 5; continue }
 
-    # 2) اسحب المهمة التالية
+    # 2) pull the next job (marks it processing)
     $job = $null
     try {
       $resp = Invoke-WebRequest -Uri "$Server/api/agent/next" -Headers $Headers -TimeoutSec 20
@@ -85,44 +83,44 @@ while ($true) {
     } catch { $job = $null }
     if (-not $job) { Start-Sleep -Seconds 5; continue }
 
-    Log "مهمة جديدة: $($job.id) — $($job.photoCount) صورة — جودة: $($job.quality)"
+    Log "New job: $($job.id) - $($job.photoCount) photos - quality: $($job.quality)"
 
-    # مجلدات عمل نظيفة لهذه المهمة
+    # clean work folders for this job
     $jobDir = Join-Path $Work $job.id
     $photos = Join-Path $jobDir "photos"
     $out    = Join-Path $jobDir "out"
     if (Test-Path $jobDir) { Remove-Item $jobDir -Recurse -Force }
     New-Item -ItemType Directory -Force -Path $photos, $out | Out-Null
 
-    # 3) نزّل الصور (ZIP) وفكّها
+    # 3) download photos (ZIP) and extract
     $zipPath = Join-Path $jobDir "photos.zip"
-    Log "تنزيل الصور…"
+    Log "Downloading photos..."
     Invoke-WebRequest -Uri "$Server/api/agent/photos/$($job.id)" -Headers $Headers -OutFile $zipPath -TimeoutSec 300
     Expand-Archive -Path $zipPath -DestinationPath $photos -Force
 
-    # 4) شغّل RealityScan عبر process.bat
+    # 4) run RealityScan via process.bat (pass the exe path as arg 4)
     $outFile = Join-Path $out "model.obj"
-    Log "تشغيل RealityScan… (قد يستغرق عدة دقائق)"
+    Log "Running RealityScan... (may take several minutes)"
     $p = Start-Process -FilePath "cmd.exe" `
-         -ArgumentList "/c", "`"$ProcessBat`"", "`"$photos`"", "`"$outFile`"", $job.quality `
+         -ArgumentList "/c", "`"$ProcessBat`"", "`"$photos`"", "`"$outFile`"", $job.quality, "`"$RealityScan`"" `
          -Wait -PassThru -NoNewWindow
-    if ($p.ExitCode -ne 0) { throw "RealityScan رجع رمز خطأ $($p.ExitCode)" }
-    if (-not (Test-Path $outFile)) { throw "لم يُنتج RealityScan ملف نموذج (تحقق من جودة الصور والتداخل)" }
+    if ($p.ExitCode -ne 0) { throw "RealityScan returned error code $($p.ExitCode)" }
+    if (-not (Test-Path $outFile)) { throw "RealityScan produced no model file (check photo quality and overlap)" }
 
-    # 5) اضغط الناتج (obj + mtl إن وُجد) وارفعه
+    # 5) zip the output (obj + mtl if any) and upload
     $resultZip = Join-Path $jobDir "result.zip"
     Compress-Archive -Path (Join-Path $out "*") -DestinationPath $resultZip -Force
-    Log "رفع النموذج…"
+    Log "Uploading model..."
     Invoke-RestMethod -Uri "$Server/api/agent/result/$($job.id)" -Method Post -Headers $Headers `
       -InFile $resultZip -ContentType "application/zip" -TimeoutSec 600 | Out-Null
 
-    Log "✅ اكتملت المهمة $($job.id)"
+    Log "Done: job $($job.id)"
     Remove-Item $jobDir -Recurse -Force -ErrorAction SilentlyContinue
   }
   catch {
     $msg = $_.Exception.Message
-    Log "خطأ: $msg"
-    # أبلغ السيرفر بالفشل حتى يظهر للمستخدم على الجوال
+    Log "Error: $msg"
+    # report failure so it shows on the phone
     if ($job -and $job.id) {
       try {
         Invoke-RestMethod -Uri "$Server/api/agent/fail/$($job.id)" -Method Post -Headers $Headers `

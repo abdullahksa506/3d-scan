@@ -1,27 +1,29 @@
 @echo off
 REM ============================================================
-REM  أمر معالجة RealityScan — يستدعيه agent.ps1 تلقائيًا.
-REM  يمكنك تعديل الأوامر هنا للتحكم بالجودة والتصدير.
+REM  RealityScan processing command - called by agent.ps1.
+REM  Edit the commands here to control quality and export.
 REM
-REM  المعطيات:  %1 = مجلد الصور   %2 = ملف الإخراج   %3 = الجودة
+REM  Args:  %1 = photos folder   %2 = output file
+REM         %3 = quality         %4 = RealityScan.exe path
 REM ============================================================
 
 set "PHOTOS=%~1"
 set "OUT=%~2"
 set "QUALITY=%~3"
+set "RS=%~4"
 
-REM مسار RealityScan — عدّله إن كان مختلفًا
-set "RS=C:\Program Files\Epic Games\RealityScan\RealityScan.exe"
+REM fall back to the default path if none was passed
+if "%RS%"=="" set "RS=C:\Program Files\Epic Games\RealityScan\RealityScan.exe"
 
-REM اختيار أمر بناء الشبكة حسب الجودة
+REM pick the mesh command based on quality
 set "MODELCMD=-calculateNormalModel"
 if /I "%QUALITY%"=="high" set "MODELCMD=-calculateHighModel"
 if /I "%QUALITY%"=="low"  set "MODELCMD=-calculatePreviewModel"
 
-REM تسلسل المعالجة: إضافة الصور ← محاذاة ← تحديد المنطقة ← بناء الشبكة
-REM   ← تبسيط إلى 200 ألف مثلث (مناسب للطباعة) ← تصدير OBJ ← خروج.
-REM ملاحظة: "" في -exportModel تعني «صدّر النموذج النشط الحالي».
-%RS% -headless ^
+REM add photos -> align -> auto region -> build mesh -> simplify to
+REM 200k triangles (good for printing) -> export OBJ -> quit.
+REM Note: "" in -exportModel means "export the active model".
+"%RS%" -headless ^
   -addFolder "%PHOTOS%" ^
   -align ^
   -setReconstructionRegionAuto ^
