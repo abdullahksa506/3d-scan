@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>ماسح ثلاثي الأبعاد — من الآيفون إلى الطابعة</title>
+<meta name="description" content="التقط صورًا للجسم، استورد نموذجك ثلاثي الأبعاد، افحصه وجهّزه، واحسب المواد والتكلفة للطباعة ثلاثية الأبعاد — كل ذلك من متصفح الآيفون.">
+<meta name="theme-color" content="#0d1117">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="مسح 3D">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="css/app.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/build/three.module.js" } }
+</script>
+</head>
+<body>
+
+<header class="topbar">
+  <h1>🧊 مسح <span>3D</span> → طباعة</h1>
+  <span id="model-badge" class="badge" hidden></span>
+</header>
+
+<main id="main">
+
+  <!-- ============ 1) المسح / الالتقاط ============ -->
+  <section id="tab-scan" class="tab active">
+    <div class="card intro-card">
+      <h2>📷 مسح جسم بالتصوير المتعدد</h2>
+      <p>سفاري لا يستطيع الوصول لحساس LiDAR مباشرة، لذلك نستخدم <b>التصوير المساحي (Photogrammetry)</b>: التقط <b>40–80 صورة</b> حول الجسم من ثلاث زوايا ارتفاع، ثم عالجها بأي أداة photogrammetry واستورد النتيجة في تبويب «المعاينة».</p>
+      <details>
+        <summary>نصائح لأفضل نتيجة مسح</summary>
+        <ul>
+          <li>إضاءة قوية ومنتشرة بدون ظلال حادة (تجنّب الفلاش).</li>
+          <li>ثبّت الجسم ولفّ أنت حوله — لا تلفّ الجسم.</li>
+          <li>تداخل 60–80٪ بين كل صورة والتي تليها.</li>
+          <li>ثلاث دورات كاملة: مستوى منخفض، مستوى العين، ومن الأعلى.</li>
+          <li>تجنب الأسطح اللامعة والشفافة — رشّ سبراي مطفي إن لزم.</li>
+          <li>ضع الجسم على خلفية غنية بالتفاصيل (جريدة مثلًا) لتحسين التتبع.</li>
+        </ul>
+      </details>
+      <details>
+        <summary>أدوات المعالجة المقترحة (تحوّل الصور إلى نموذج)</summary>
+        <ul>
+          <li><b>على الآيفون مباشرة:</b> تطبيقات مثل RealityScan أو Polycam أو Scaniverse (تصدّر OBJ/GLB/USDZ/STL).</li>
+          <li><b>على الكمبيوتر (مجاني):</b> Meshroom أو COLMAP — ارفع ملف ZIP الصور الذي يصدّره هذا الموقع.</li>
+        </ul>
+      </details>
+    </div>
+
+    <div class="card">
+      <div id="camera-wrap" class="camera-wrap">
+        <video id="camera" playsinline autoplay muted></video>
+        <canvas id="coverage-ring"></canvas>
+        <div id="camera-off" class="camera-off">
+          <p>الكاميرا متوقفة</p>
+          <button id="btn-start-camera" class="btn primary">تشغيل الكاميرا</button>
+          <button id="btn-enable-motion" class="btn ghost small" hidden>تفعيل حساس الاتجاه (لعدّاد التغطية)</button>
+        </div>
+      </div>
+      <div class="capture-bar">
+        <button id="btn-shoot" class="shutter" disabled aria-label="التقاط صورة"></button>
+        <div class="capture-stats">
+          <span id="shot-count">0 صورة</span>
+          <span id="coverage-pct" class="muted">التغطية: —</span>
+        </div>
+        <button id="btn-stop-camera" class="btn ghost small" disabled>إيقاف</button>
+      </div>
+      <div id="thumbs" class="thumbs"></div>
+      <div class="row gap">
+        <button id="btn-export-zip" class="btn primary grow" disabled>⬇️ تنزيل الصور (ZIP)</button>
+        <button id="btn-clear-shots" class="btn danger" disabled>مسح الكل</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 2) المعاينة والفحص ============ -->
+  <section id="tab-view" class="tab">
+    <div class="card">
+      <h2>🧊 استيراد النموذج ومعاينته</h2>
+      <p class="muted">يدعم: STL · OBJ · GLB/GLTF · PLY · USDZ (مخرجات تطبيقات المسح على الآيفون)</p>
+      <label class="file-drop" id="file-drop">
+        <input type="file" id="file-input" accept=".stl,.obj,.glb,.gltf,.ply,.usdz,.usda,.usdc,model/*">
+        <span>📂 اضغط لاختيار ملف النموذج<br><small>أو اسحبه هنا</small></span>
+      </label>
+      <div id="load-status" class="muted" hidden></div>
+    </div>
+
+    <div class="card viewer-card">
+      <div id="viewer" class="viewer">
+        <div id="viewer-empty" class="viewer-empty">لا يوجد نموذج بعد — استورد ملفًا أو أنشئ مسحًا</div>
+      </div>
+      <div class="row gap wrap viewer-tools">
+        <button id="btn-wireframe" class="btn ghost small" disabled>شبكة سلكية</button>
+        <button id="btn-fit" class="btn ghost small" disabled>ملاءمة العرض</button>
+        <button id="btn-demo" class="btn ghost small">🧪 نموذج تجريبي</button>
+      </div>
+    </div>
+
+    <div class="card" id="analysis-card" hidden>
+      <h2>🔎 فحص قابلية الطباعة</h2>
+      <div id="health-banner" class="health"></div>
+      <table class="stats-table">
+        <tbody>
+          <tr><td>الأبعاد (طول×عرض×ارتفاع)</td><td id="st-dims">—</td></tr>
+          <tr><td>الحجم</td><td id="st-volume">—</td></tr>
+          <tr><td>مساحة السطح</td><td id="st-area">—</td></tr>
+          <tr><td>عدد المثلثات</td><td id="st-tris">—</td></tr>
+          <tr><td>حواف مفتوحة (ثقوب)</td><td id="st-holes">—</td></tr>
+          <tr><td>حواف غير سليمة (non-manifold)</td><td id="st-nonmanifold">—</td></tr>
+          <tr><td>مغلق ومصمت (watertight)</td><td id="st-watertight">—</td></tr>
+        </tbody>
+      </table>
+      <div id="unit-hint" class="hint" hidden></div>
+    </div>
+  </section>
+
+  <!-- ============ 3) التجهيز للطباعة ============ -->
+  <section id="tab-prep" class="tab">
+    <div class="card">
+      <h2>🛠️ تجهيز النموذج</h2>
+      <p class="muted" id="prep-empty-note">استورد نموذجًا أولًا من تبويب «المعاينة».</p>
+      <div id="prep-tools" hidden>
+
+        <h3>وحدات القياس والتحجيم</h3>
+        <div class="row gap wrap">
+          <button class="btn ghost small" data-scale="1000">متر → ملم (×1000)</button>
+          <button class="btn ghost small" data-scale="25.4">إنش → ملم (×25.4)</button>
+          <button class="btn ghost small" data-scale="10">سم → ملم (×10)</button>
+          <button class="btn ghost small" data-scale="0.001">ملم → متر (÷1000)</button>
+        </div>
+        <div class="row gap align-end">
+          <label class="field grow">أكبر بُعد مستهدف (ملم)
+            <input type="number" id="target-size" min="1" step="1" placeholder="مثال: 100">
+          </label>
+          <button id="btn-scale-to" class="btn primary">تحجيم</button>
+        </div>
+
+        <h3>التوجيه على سطح الطباعة</h3>
+        <div class="row gap wrap">
+          <button class="btn ghost small" data-rot="x">تدوير X ‏90°</button>
+          <button class="btn ghost small" data-rot="y">تدوير Y ‏90°</button>
+          <button class="btn ghost small" data-rot="z">تدوير Z ‏90°</button>
+          <button id="btn-lay-flat" class="btn ghost small">إنزال على السطح + توسيط</button>
+        </div>
+
+        <h3>إصلاحات</h3>
+        <div class="row gap wrap">
+          <button id="btn-fix-normals" class="btn ghost small">إعادة حساب الاتجاهات (Normals)</button>
+          <button id="btn-merge-verts" class="btn ghost small">دمج النقاط المكررة</button>
+        </div>
+        <p class="hint">الثقوب الكبيرة وإغلاق النماذج المفتوحة تحتاج أداة إصلاح كاملة — إن ظهر النموذج «غير مغلق» في الفحص، أصلحه في خدمة مجانية مثل Formware أو برنامج مثل Meshmixer / PrusaSlicer ثم أعد استيراده.</p>
+
+        <h3>📦 تصدير للطباعة</h3>
+        <div class="row gap wrap">
+          <button id="btn-export-stl" class="btn primary grow">STL (الأشهر)</button>
+          <button id="btn-export-3mf" class="btn primary grow">3MF (حديث)</button>
+          <button id="btn-export-obj" class="btn ghost grow">OBJ</button>
+        </div>
+        <p class="muted">وحدة التصدير: ملليمتر — جاهز مباشرة لبرامج التقطيع (Cura، PrusaSlicer، Bambu Studio…).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 4) حسابات الطباعة ============ -->
+  <section id="tab-calc" class="tab">
+    <div class="card">
+      <h2>🧮 المواد والتكلفة والوقت</h2>
+      <p class="muted" id="calc-empty-note">القيم تُحسب من حجم النموذج الحالي — استورد نموذجًا أولًا. تقديرات تقريبية وليست بديلًا عن برنامج التقطيع.</p>
+
+      <label class="field">تقنية الطباعة
+        <select id="calc-tech">
+          <option value="fdm" selected>FDM — فتيل بلاستيك</option>
+          <option value="resin">Resin — ريزن (SLA/MSLA)</option>
+        </select>
+      </label>
+
+      <label class="field">الخامة
+        <select id="calc-material"></select>
+      </label>
+      <div id="material-info" class="hint"></div>
+
+      <div id="fdm-fields">
+        <label class="field">نسبة التعبئة (Infill) <output id="infill-out">20٪</output>
+          <input type="range" id="calc-infill" min="0" max="100" step="5" value="20">
+        </label>
+        <div class="row gap">
+          <label class="field grow">عدد الجدران
+            <input type="number" id="calc-walls" min="1" max="8" value="2">
+          </label>
+          <label class="field grow">سرعة الطباعة
+            <select id="calc-speed">
+              <option value="5">جودة عالية (بطيء)</option>
+              <option value="10" selected>قياسي</option>
+              <option value="16">سريع</option>
+            </select>
+          </label>
+        </div>
+        <label class="check"><input type="checkbox" id="calc-supports"> يحتاج دعامات (+18٪ خامة ووقت)</label>
+      </div>
+
+      <div id="resin-fields" hidden>
+        <label class="field">ارتفاع الطبقة
+          <select id="resin-layer">
+            <option value="0.025">0.025 ملم (دقة قصوى)</option>
+            <option value="0.05" selected>0.05 ملم (قياسي)</option>
+            <option value="0.1">0.1 ملم (سريع)</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="field">سعر الخامة (<span id="price-unit">ريال/كجم</span>)
+        <input type="number" id="calc-price" min="0" step="1" value="100">
+      </label>
+
+      <div id="calc-results" class="results" hidden>
+        <div class="result-tile"><span class="rt-label">الخامة المطلوبة</span><span class="rt-value" id="r-material">—</span></div>
+        <div class="result-tile"><span class="rt-label">الوزن</span><span class="rt-value" id="r-weight">—</span></div>
+        <div class="result-tile"><span class="rt-label">التكلفة</span><span class="rt-value" id="r-cost">—</span></div>
+        <div class="result-tile"><span class="rt-label">الوقت التقديري</span><span class="rt-value" id="r-time">—</span></div>
+      </div>
+      <div id="calc-settings-hint" class="hint"></div>
+    </div>
+  </section>
+
+</main>
+
+<nav class="tabbar">
+  <button class="tabbtn active" data-tab="scan"><span>📷</span>المسح</button>
+  <button class="tabbtn" data-tab="view"><span>🧊</span>المعاينة</button>
+  <button class="tabbtn" data-tab="prep"><span>🛠️</span>التجهيز</button>
+  <button class="tabbtn" data-tab="calc"><span>🧮</span>الحسابات</button>
+</nav>
+
+<div id="toast" class="toast" hidden></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
