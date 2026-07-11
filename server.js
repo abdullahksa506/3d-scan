@@ -28,6 +28,14 @@ let lastHeartbeat = 0;
 
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const agentOnline = () => Date.now() - lastHeartbeat < HEARTBEAT_ONLINE_MS;
+const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
+
+// يسجّل انتقال اتصال الوكيل (متصل/غير متصل) لتشخيص أسهل من لوقات Render
+function markHeartbeat() {
+  const wasOnline = agentOnline();
+  lastHeartbeat = Date.now();
+  if (!wasOnline) log('🟢 الوكيل متصل (نبضة واردة)');
+}
 
 function touch(job) { job.updatedAt = Date.now(); }
 function cleanup() {
@@ -73,6 +81,7 @@ app.post('/api/local/upload', upload.array('photos', 300), (req, res) => {
     createdAt: Date.now(),
     updatedAt: Date.now(),
   });
+  log(`📤 [${id}] مهمة جديدة: ${files.length} صورة، جودة=${jobs.get(id).quality}، الوكيل ${agentOnline() ? 'متصل' : 'غير متصل'}`);
   res.json({ jobId: id, queuedBehind: [...jobs.values()].filter(j => j.status === 'queued').length - 1, agentOnline: agentOnline() });
 });
 
@@ -96,18 +105,19 @@ app.get('/api/local/result/:id', (req, res) => {
 
 // نبضة حياة — تُحدّث حالة الاتصال وتخبر الوكيل إن كان هناك عمل
 app.post('/api/agent/heartbeat', agentAuth, (req, res) => {
-  lastHeartbeat = Date.now();
+  markHeartbeat();
   const pending = [...jobs.values()].some(j => j.status === 'queued');
   res.json({ ok: true, hasJob: pending });
 });
 
 // اسحب المهمة التالية (يعلّمها «قيد المعالجة»)
 app.get('/api/agent/next', agentAuth, (req, res) => {
-  lastHeartbeat = Date.now();
+  markHeartbeat();
   const job = [...jobs.values()].sort((a, b) => a.createdAt - b.createdAt).find(j => j.status === 'queued');
   if (!job) return res.status(204).end();
   job.status = 'processing';
   touch(job);
+  log(`⚙️  [${job.id}] سحبها الوكيل للمعالجة (${job.photos.length} صورة)`);
   res.json({ id: job.id, quality: job.quality, photoCount: job.photos.length });
 });
 
@@ -132,6 +142,7 @@ app.post('/api/agent/result/:id', agentAuth,
     job.result = req.body;
     job.status = 'done';
     touch(job);
+    log(`✅ [${job.id}] وصل النموذج (${Math.round(req.body.length / 1024)} كيلوبايت) — جاهز`);
     res.json({ ok: true });
   });
 
@@ -142,6 +153,7 @@ app.post('/api/agent/fail/:id', agentAuth, express.json(), (req, res) => {
   job.status = 'failed';
   job.error = (req.body && req.body.error) || 'فشلت المعالجة على الكمبيوتر';
   touch(job);
+  log(`❌ [${job.id}] فشل: ${job.error}`);
   res.json({ ok: true });
 });
 
