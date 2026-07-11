@@ -6,6 +6,7 @@ services:
     buildCommand: npm install
     startCommand: node server.js
     envVars:
-      # مفتاح KIRI Engine API — أدخله يدويًا من لوحة Render (لا يُحفظ في الكود أبدًا)
-      - key: KIRI_API_KEY
-        sync: false
+      # سر مشترك بين الخادم والوكيل على كمبيوترك — أنشئ قيمة عشوائية طويلة
+      # وضعها هنا في Render وفي إعداد الوكيل. لا يُحفظ في الكود أبدًا.
+      - key: AGENT_TOKEN
+        generateValue: true

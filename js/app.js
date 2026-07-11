@@ -9,7 +9,7 @@ import { analyzeGeometry, mergeByPosition } from './analysis.js';
 import { exportSTL, exportOBJ, export3MF } from './exporters.js';
 import { initCapture } from './capture.js';
 import { initCalc, recalc } from './calc.js';
-import { initCloud } from './cloud.js';
+import { initLocal } from './local.js';
 
 // ---------- الحالة ----------
 let geometry = null;   // BufferGeometry الحالي (بالملليمتر)
@@ -308,7 +308,7 @@ $('btn-export-3mf').addEventListener('click', () => geometry && (export3MF(geome
 // ---------- الوحدات الأخرى ----------
 initCapture(toast);
 initCalc(() => stats);
-initCloud(toast);
+initLocal(toast);
 
 // استقبال نموذج جاهز من المعالجة السحابية → فتحه والانتقال للمعاينة
 window.addEventListener('import-model-buffer', async (e) => {

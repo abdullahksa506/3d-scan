@@ -77,28 +77,28 @@
       </div>
     </div>
 
-    <div class="card" id="cloud-card">
-      <h2>☁️ معالجة سحابية: صور ← نموذج 3D تلقائيًا</h2>
-      <p class="muted">يرفع صورك إلى محرك KIRI Engine للفوتوغرامتري، وعند اكتمال البناء (عادة 5–15 دقيقة) يفتح النموذج تلقائيًا في تبويب «المعاينة». الحد الأدنى 20 صورة.</p>
-      <div id="cloud-unconfigured" class="hint" hidden>
-        الخدمة غير مفعّلة بعد: أضف متغير البيئة <bdi><b>KIRI_API_KEY</b></bdi> في إعدادات الخدمة على Render
-        (أنشئ حسابًا مطوّرًا مجانيًا في <bdi>kiriengine.app/api</bdi> — يعطيك 20 كريدت مجانية).
+    <div class="card" id="local-card">
+      <h2>💻 معالجة على جهازك</h2>
+      <p class="muted">يرسل صورك إلى كمبيوترك المنزلي ليعالجها RealityScan تلقائيًا، وعند الاكتمال يفتح النموذج في تبويب «المعاينة». مجاني بالكامل — لا يمر بأي خدمة خارجية. الحد الأدنى 15 صورة.</p>
+      <div id="local-no-server" class="hint" hidden>
+        هذه الميزة غير مفعّلة على الخادم: عيّن متغير البيئة <bdi><b>AGENT_TOKEN</b></bdi> في إعدادات الخدمة على Render،
+        وشغّل «الوكيل» على كمبيوترك (انظر مجلد <bdi>agent/</bdi> في المستودع).
       </div>
-      <div id="cloud-controls">
-        <div class="row gap">
-          <label class="field grow">جودة النموذج
-            <select id="cloud-quality">
-              <option value="0" selected>عالية</option>
-              <option value="3">فائقة (Ultra)</option>
-              <option value="1">متوسطة</option>
-              <option value="2">منخفضة (أسرع)</option>
-            </select>
-          </label>
+      <div id="local-controls">
+        <div class="agent-status">
+          <span id="agent-dot" class="dot off"></span>
+          <span id="agent-status-text">جارٍ التحقق من اتصال الكمبيوتر…</span>
         </div>
-        <label class="check"><input type="checkbox" id="cloud-mask" checked> عزل الجسم عن الخلفية تلقائيًا (مستحسن)</label>
-        <button id="btn-cloud-upload" class="btn primary grow" disabled>☁️ ارفع وعالج</button>
-        <div id="cloud-status" class="hint" hidden></div>
-        <button id="btn-cloud-cancel" class="btn ghost small" hidden>إلغاء المتابعة</button>
+        <label class="field">جودة النموذج
+          <select id="local-quality">
+            <option value="high">عالية (أبطأ، أدق تفاصيل)</option>
+            <option value="normal" selected>قياسية (موصى بها)</option>
+            <option value="low">سريعة (معاينة)</option>
+          </select>
+        </label>
+        <button id="btn-local-upload" class="btn primary grow" disabled>💻 أرسل للمعالجة على جهازي</button>
+        <div id="local-status" class="hint" hidden></div>
+        <button id="btn-local-cancel" class="btn ghost small" hidden>إلغاء المتابعة</button>
       </div>
     </div>
   </section>
