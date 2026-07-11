@@ -20,12 +20,55 @@ $Headers = @{ Authorization = "Bearer $Token" }
 
 function Log($msg) { Write-Host ("[{0}] {1}" -f (Get-Date -Format "HH:mm:ss"), $msg) }
 
-if (-not (Test-Path $RealityScan)) {
-  Log "تحذير: لم أجد RealityScan في: $RealityScan"
-  Log "عدّل المسار في أعلى agent.ps1 ثم أعد التشغيل."
+# ---------- فحص تمهيدي: يتأكد أن الربط سليم قبل الانتظار ----------
+function Preflight {
+  Log "فحص الإعدادات والاتصال…"
+
+  if ($Server -match "YOUR-APP" -or [string]::IsNullOrWhiteSpace($Server)) {
+    Log "✗ لم تعدّل رابط الموقع. غيّر `$Server في أعلى agent.ps1."; return $false
+  }
+  if ($Token -match "PASTE-YOUR" -or [string]::IsNullOrWhiteSpace($Token)) {
+    Log "✗ لم تلصق التوكن. انسخ AGENT_TOKEN من Render وضعه في `$Token."; return $false
+  }
+  if (-not (Test-Path $RealityScan)) {
+    Log "⚠ لم أجد RealityScan في: $RealityScan"
+    Log "  عدّل `$RealityScan في الأعلى (المعالجة ستفشل بدونه، لكن سأكمل الاتصال)."
+  } else {
+    Log "✓ عُثر على RealityScan"
+  }
+
+  # 1) هل الخادم يعمل والميزة مفعّلة؟
+  try {
+    $st = Invoke-RestMethod -Uri "$Server/api/local/agent-status" -TimeoutSec 25
+  } catch {
+    Log "✗ تعذّر الوصول للخادم: $Server"
+    Log "  تأكد أن الرابط صحيح وأن الخدمة على Render من نوع Web Service وتعمل."
+    return $false
+  }
+  if (-not $st.enabled) {
+    Log "✗ الخادم يعمل لكن AGENT_TOKEN غير مضبوط في Render."
+    Log "  أضف متغير البيئة AGENT_TOKEN في إعدادات الخدمة ثم أعد النشر."
+    return $false
+  }
+  Log "✓ الخادم متصل والميزة مفعّلة"
+
+  # 2) هل التوكن صحيح؟ (نبضة تجريبية)
+  try {
+    Invoke-RestMethod -Uri "$Server/api/agent/heartbeat" -Method Post -Headers $Headers -TimeoutSec 25 | Out-Null
+  } catch {
+    Log "✗ التوكن غير صحيح — قيمة `$Token لا تطابق AGENT_TOKEN في Render."
+    return $false
+  }
+  Log "✓ التوكن صحيح — الربط ناجح! 🟢"
+  Log "  افتح جوالك الآن؛ سترى «الكمبيوتر متصل» في تبويب المسح."
+  return $true
 }
 
 Log "بدء الوكيل — الخادم: $Server"
+if (-not (Preflight)) {
+  Log "توقف بسبب مشكلة في الإعداد أعلاه. صحّحها وأعد تشغيل run-agent.bat."
+  exit 1
+}
 Log "في انتظار المهام… (اترك هذه النافذة مفتوحة)"
 
 while ($true) {
