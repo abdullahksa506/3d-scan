@@ -78,7 +78,7 @@ while ($true) {
     # 2) pull the next job (marks it processing)
     $job = $null
     try {
-      $resp = Invoke-WebRequest -Uri "$Server/api/agent/next" -Headers $Headers -TimeoutSec 20
+      $resp = Invoke-WebRequest -Uri "$Server/api/agent/next" -Headers $Headers -TimeoutSec 20 -UseBasicParsing
       if ($resp.StatusCode -eq 200) { $job = $resp.Content | ConvertFrom-Json }
     } catch { $job = $null }
     if (-not $job) { Start-Sleep -Seconds 5; continue }
@@ -95,16 +95,16 @@ while ($true) {
     # 3) download photos (ZIP) and extract
     $zipPath = Join-Path $jobDir "photos.zip"
     Log "Downloading photos..."
-    Invoke-WebRequest -Uri "$Server/api/agent/photos/$($job.id)" -Headers $Headers -OutFile $zipPath -TimeoutSec 300
+    Invoke-WebRequest -Uri "$Server/api/agent/photos/$($job.id)" -Headers $Headers -OutFile $zipPath -TimeoutSec 300 -UseBasicParsing
     Expand-Archive -Path $zipPath -DestinationPath $photos -Force
 
-    # 4) run RealityScan via process.bat (pass the exe path as arg 4)
+    # 4) run RealityScan via process.bat (call the .bat directly so cmd's
+    #    multi-quote stripping rule can't mangle the paths)
     $outFile = Join-Path $out "model.obj"
     Log "Running RealityScan... (may take several minutes)"
-    $p = Start-Process -FilePath "cmd.exe" `
-         -ArgumentList "/c", "`"$ProcessBat`"", "`"$photos`"", "`"$outFile`"", $job.quality, "`"$RealityScan`"" `
-         -Wait -PassThru -NoNewWindow
-    if ($p.ExitCode -ne 0) { throw "RealityScan returned error code $($p.ExitCode)" }
+    & $ProcessBat $photos $outFile $job.quality $RealityScan
+    $code = $LASTEXITCODE
+    if ($code -ne 0) { throw "RealityScan returned error code $code" }
     if (-not (Test-Path $outFile)) { throw "RealityScan produced no model file (check photo quality and overlap)" }
 
     # 5) zip the output (obj + mtl if any) and upload
