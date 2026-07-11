@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: 3d-scan
+    runtime: static
+    # موقع ثابت — لا يوجد أمر بناء
+    buildCommand: ""
+    staticPublishPath: .
+    headers:
+      # منع تخزين Service Worker حتى تصل التحديثات فورًا
+      - path: /sw.js
+        name: Cache-Control
+        value: no-cache
+      # مكتبات vendor لا تتغير — تخزين طويل
+      - path: /vendor/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
