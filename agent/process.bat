@@ -21,15 +21,16 @@ if /I "%QUALITY%"=="high" set "MODELCMD=-calculateHighModel"
 if /I "%QUALITY%"=="low"  set "MODELCMD=-calculatePreviewModel"
 
 REM add photos -> align -> auto region -> build mesh -> simplify to
-REM 200k triangles (good for printing) -> export OBJ -> quit.
-REM Note: "" in -exportModel means "export the active model".
+REM 200k triangles (good for printing) -> export the active model -> quit.
+REM appQuitOnError makes RealityScan close (not hang) if anything fails.
 "%RS%" -headless ^
+  -set "appQuitOnError=true" ^
   -addFolder "%PHOTOS%" ^
   -align ^
   -setReconstructionRegionAuto ^
   %MODELCMD% ^
   -simplify 200000 ^
-  -exportModel "" "%OUT%" ^
+  -exportSelectedModel "%OUT%" ^
   -quit
 
 exit /b %ERRORLEVEL%
