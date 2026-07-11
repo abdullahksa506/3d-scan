@@ -76,6 +76,31 @@
         <button id="btn-clear-shots" class="btn danger" disabled>مسح الكل</button>
       </div>
     </div>
+
+    <div class="card" id="cloud-card">
+      <h2>☁️ معالجة سحابية: صور ← نموذج 3D تلقائيًا</h2>
+      <p class="muted">يرفع صورك إلى محرك KIRI Engine للفوتوغرامتري، وعند اكتمال البناء (عادة 5–15 دقيقة) يفتح النموذج تلقائيًا في تبويب «المعاينة». الحد الأدنى 20 صورة.</p>
+      <div id="cloud-unconfigured" class="hint" hidden>
+        الخدمة غير مفعّلة بعد: أضف متغير البيئة <bdi><b>KIRI_API_KEY</b></bdi> في إعدادات الخدمة على Render
+        (أنشئ حسابًا مطوّرًا مجانيًا في <bdi>kiriengine.app/api</bdi> — يعطيك 20 كريدت مجانية).
+      </div>
+      <div id="cloud-controls">
+        <div class="row gap">
+          <label class="field grow">جودة النموذج
+            <select id="cloud-quality">
+              <option value="0" selected>عالية</option>
+              <option value="3">فائقة (Ultra)</option>
+              <option value="1">متوسطة</option>
+              <option value="2">منخفضة (أسرع)</option>
+            </select>
+          </label>
+        </div>
+        <label class="check"><input type="checkbox" id="cloud-mask" checked> عزل الجسم عن الخلفية تلقائيًا (مستحسن)</label>
+        <button id="btn-cloud-upload" class="btn primary grow" disabled>☁️ ارفع وعالج</button>
+        <div id="cloud-status" class="hint" hidden></div>
+        <button id="btn-cloud-cancel" class="btn ghost small" hidden>إلغاء المتابعة</button>
+      </div>
+    </div>
   </section>
 
   <!-- ============ 2) المعاينة والفحص ============ -->

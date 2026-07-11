@@ -138,8 +138,11 @@ function clearShots() {
   drawRing();
 }
 
+export function getShots() { return shots; }
+
 function updateStats() {
   els['shot-count'].textContent = `${shots.length} صورة`;
+  window.dispatchEvent(new CustomEvent('shots-changed', { detail: { count: shots.length } }));
   const covered = coveredSegments();
   els['coverage-pct'].textContent = motionEnabled && shots.length
     ? `التغطية: ${Math.round(covered.size / SEGMENTS * 100)}٪`

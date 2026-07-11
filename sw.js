@@ -1,5 +1,5 @@
 // Service Worker — يخزّن التطبيق للعمل بدون اتصال
-const CACHE = 'scan3d-v1';
+const CACHE = 'scan3d-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -10,6 +10,7 @@ const ASSETS = [
   './js/exporters.js',
   './js/capture.js',
   './js/calc.js',
+  './js/cloud.js',
   './js/materials.js',
   './manifest.webmanifest',
   './icons/icon.svg',
@@ -48,6 +49,8 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  // طلبات الـ API تذهب للشبكة دائمًا — لا تُخزَّن أبدًا
+  if (new URL(e.request.url).pathname.includes('/api/')) return;
   e.respondWith(
     caches.match(e.request).then(hit => hit || fetch(e.request).then(res => {
       if (res.ok && new URL(e.request.url).origin === location.origin) {

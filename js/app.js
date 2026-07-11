@@ -9,6 +9,7 @@ import { analyzeGeometry, mergeByPosition } from './analysis.js';
 import { exportSTL, exportOBJ, export3MF } from './exporters.js';
 import { initCapture } from './capture.js';
 import { initCalc, recalc } from './calc.js';
+import { initCloud } from './cloud.js';
 
 // ---------- الحالة ----------
 let geometry = null;   // BufferGeometry الحالي (بالملليمتر)
@@ -54,12 +55,15 @@ fileDrop.addEventListener('drop', e => {
 });
 
 async function loadFile(file) {
+  return importBuffer(await file.arrayBuffer(), file.name);
+}
+
+async function importBuffer(buffer, filename) {
   const status = $('load-status');
   status.hidden = false;
-  status.textContent = `⏳ جاري تحميل ${file.name}…`;
+  status.textContent = `⏳ جاري تحميل ${filename}…`;
   try {
-    const ext = file.name.split('.').pop().toLowerCase();
-    const buffer = await file.arrayBuffer();
+    const ext = filename.split('.').pop().toLowerCase();
     let geo;
 
     if (ext === 'stl') {
@@ -85,8 +89,8 @@ async function loadFile(file) {
       throw new Error('لم يتم العثور على شبكة مثلثات في الملف');
     }
 
-    setGeometry(geo, file.name.replace(/\.[^.]+$/, ''));
-    status.textContent = `✓ تم تحميل ${file.name}`;
+    setGeometry(geo, filename.replace(/\.[^.]+$/, ''));
+    status.textContent = `✓ تم تحميل ${filename}`;
     // GLB/GLTF/USDZ غالبًا بالمتر — نحوّلها تلقائيًا إن بدت صغيرة جدًا
     autoDetectUnits(ext);
   } catch (e) {
@@ -304,6 +308,13 @@ $('btn-export-3mf').addEventListener('click', () => geometry && (export3MF(geome
 // ---------- الوحدات الأخرى ----------
 initCapture(toast);
 initCalc(() => stats);
+initCloud(toast);
+
+// استقبال نموذج جاهز من المعالجة السحابية → فتحه والانتقال للمعاينة
+window.addEventListener('import-model-buffer', async (e) => {
+  document.querySelector('[data-tab="view"]').click();
+  await importBuffer(e.detail.buffer, e.detail.filename);
+});
 
 // ---------- PWA ----------
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
