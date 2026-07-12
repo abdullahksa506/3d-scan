@@ -100,7 +100,8 @@ while ($true) {
 
     # 4) run RealityScan via process.bat (call the .bat directly so cmd's
     #    multi-quote stripping rule can't mangle the paths)
-    $outFile = Join-Path $out "model.obj"
+    #    GLB export embeds the color texture in one file.
+    $outFile = Join-Path $out "model.glb"
     Log "Running RealityScan... (may take several minutes)"
     & $ProcessBat $photos $outFile $job.quality $RealityScan
     $code = $LASTEXITCODE

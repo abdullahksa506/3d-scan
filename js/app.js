@@ -4,7 +4,7 @@ import { OBJLoader } from '../vendor/three/examples/jsm/loaders/OBJLoader.js';
 import { PLYLoader } from '../vendor/three/examples/jsm/loaders/PLYLoader.js';
 import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/three/examples/jsm/utils/BufferGeometryUtils.js';
-import { initViewer, showGeometry, fitView, toggleWireframe, refresh } from './viewer.js';
+import { initViewer, showGeometry, fitView, toggleWireframe, toggleColor, hasColor, refresh } from './viewer.js';
 import { analyzeGeometry, mergeByPosition } from './analysis.js';
 import { exportSTL, exportOBJ, export3MF } from './exporters.js';
 import { initCapture } from './capture.js';
@@ -65,7 +65,7 @@ async function importBuffer(buffer, filename) {
   status.textContent = `⏳ جاري تحميل ${filename}…`;
   try {
     const ext = filename.split('.').pop().toLowerCase();
-    let geo;
+    let geo = null, sceneRoot = null;
 
     if (ext === 'stl') {
       geo = new STLLoader().parse(buffer);
@@ -73,24 +73,37 @@ async function importBuffer(buffer, filename) {
       geo = new PLYLoader().parse(buffer);
     } else if (ext === 'obj') {
       const text = new TextDecoder().decode(buffer);
-      geo = collectGeometries(new OBJLoader().parse(text));
+      sceneRoot = new OBJLoader().parse(text);
     } else if (ext === 'glb' || ext === 'gltf') {
       const gltf = await new Promise((res, rej) =>
         new GLTFLoader().parse(buffer, '', res, rej));
-      geo = collectGeometries(gltf.scene);
+      sceneRoot = gltf.scene;
     } else if (ext === 'usdz' || ext === 'usda' || ext === 'usdc') {
       const { USDLoader } = await import('../vendor/three/examples/jsm/loaders/USDLoader.js');
-      const obj = new USDLoader().parse(buffer);
-      geo = collectGeometries(obj);
+      sceneRoot = new USDLoader().parse(buffer);
     } else {
       throw new Error('صيغة غير مدعومة');
+    }
+
+    // استخرج الألوان إن وُجدت (تكستور من المشهد، أو ألوان رؤوس من PLY)
+    let coloredMat = null;
+    if (sceneRoot) {
+      const textured = collectTexturedMesh(sceneRoot);
+      if (textured) { geo = textured.geometry; coloredMat = textured.material; }
+      else geo = collectGeometries(sceneRoot);
+    } else if (geo && geo.attributes.color) {
+      if (!geo.attributes.normal) geo.computeVertexNormals();
+      coloredMat = new THREE.MeshStandardMaterial({
+        vertexColors: true, color: 0xffffff, metalness: 0, roughness: 1,
+        side: THREE.DoubleSide, flatShading: !geo.attributes.normal,
+      });
     }
 
     if (!geo || !geo.attributes.position || geo.attributes.position.count === 0) {
       throw new Error('لم يتم العثور على شبكة مثلثات في الملف');
     }
 
-    setGeometry(geo, filename.replace(/\.[^.]+$/, ''));
+    setGeometry(geo, filename.replace(/\.[^.]+$/, ''), coloredMat);
     status.textContent = `✓ تم تحميل ${filename}`;
     // GLB/GLTF/USDZ غالبًا بالمتر — نحوّلها تلقائيًا إن بدت صغيرة جدًا
     autoDetectUnits(ext);
@@ -99,6 +112,35 @@ async function importBuffer(buffer, filename) {
     status.textContent = `✗ فشل التحميل: ${e.message || e}`;
     toast('تعذر قراءة الملف — جرّب صيغة أخرى (STL أو OBJ)');
   }
+}
+
+// يستخرج نموذجًا ملوّنًا واحدًا (تكستور أو ألوان رؤوس) للعرض بالألوان.
+// يعمل فقط مع النماذج البسيطة أحادية الشبكة (وهي حالة الفوتوغرامتري الشائعة).
+function collectTexturedMesh(root) {
+  root.updateMatrixWorld(true);
+  const meshes = [];
+  root.traverse(n => { if (n.isMesh && n.geometry?.attributes?.position) meshes.push(n); });
+  if (meshes.length !== 1) return null;
+  const m = meshes[0];
+  const srcMat = Array.isArray(m.material) ? m.material[0] : m.material;
+  const hasTex = !!(srcMat && srcMat.map);
+  const hasVColors = !!m.geometry.attributes.color;
+  if (!hasTex && !hasVColors) return null;
+
+  let g = m.geometry.clone();
+  for (const key of Object.keys(g.attributes)) {
+    if (!['position', 'normal', 'uv', 'color'].includes(key)) g.deleteAttribute(key);
+  }
+  g.applyMatrix4(m.matrixWorld);
+  if (!g.attributes.normal) g.computeVertexNormals();
+
+  const mat = new THREE.MeshStandardMaterial({
+    map: hasTex ? srcMat.map : null,
+    vertexColors: hasVColors,
+    color: 0xffffff, metalness: 0, roughness: 1, side: THREE.DoubleSide,
+  });
+  if (mat.map) { mat.map.colorSpace = THREE.SRGBColorSpace; mat.map.needsUpdate = true; }
+  return { geometry: g, material: mat };
 }
 
 // يجمع كل الـ meshes من مشهد إلى BufferGeometry واحدة (مع تطبيق التحويلات)
@@ -142,14 +184,17 @@ function autoDetectUnits(ext) {
   }
 }
 
-function setGeometry(geo, name) {
+function setGeometry(geo, name, coloredMaterial = null) {
   geometry = geo;
   modelName = name || 'model';
   geometry.computeBoundingBox();
-  showGeometry(geometry);
+  showGeometry(geometry, coloredMaterial);
   $('viewer-empty').style.display = 'none';
   $('btn-wireframe').disabled = false;
   $('btn-fit').disabled = false;
+  const colorBtn = $('btn-color');
+  colorBtn.hidden = !hasColor();
+  colorBtn.textContent = '🔷 الشكل الهندسي'; // الألوان معروضة افتراضيًا، فالزر يبدّل للهندسي
   $('prep-empty-note').hidden = true;
   $('prep-tools').hidden = false;
   const badge = $('model-badge');
@@ -194,6 +239,10 @@ function runAnalysis() {
 // ---------- أدوات العارض ----------
 $('btn-wireframe').addEventListener('click', () => toggleWireframe());
 $('btn-fit').addEventListener('click', () => fitView());
+$('btn-color').addEventListener('click', () => {
+  const on = toggleColor();
+  $('btn-color').textContent = on ? '🔷 الشكل الهندسي' : '🎨 الألوان';
+});
 $('btn-demo').addEventListener('click', () => {
   const geo = new THREE.TorusKnotGeometry(20, 6.5, 220, 36);
   geo.rotateX(Math.PI / 2);

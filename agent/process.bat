@@ -20,8 +20,8 @@ set "MODELCMD=-calculateNormalModel"
 if /I "%QUALITY%"=="high" set "MODELCMD=-calculateHighModel"
 if /I "%QUALITY%"=="low"  set "MODELCMD=-calculatePreviewModel"
 
-REM add photos -> align -> auto region -> build mesh -> simplify to
-REM 200k triangles (good for printing) -> export the active model -> quit.
+REM add photos -> align -> auto region -> build mesh -> simplify to 200k
+REM triangles -> calculate texture (color) -> export textured GLB -> quit.
 REM appQuitOnError makes RealityScan close (not hang) if anything fails.
 "%RS%" -headless ^
   -set "appQuitOnError=true" ^
@@ -30,6 +30,7 @@ REM appQuitOnError makes RealityScan close (not hang) if anything fails.
   -setReconstructionRegionAuto ^
   %MODELCMD% ^
   -simplify 200000 ^
+  -calculateTexture ^
   -exportSelectedModel "%OUT%" ^
   -quit
 

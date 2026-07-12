@@ -60,20 +60,39 @@ function buildPlate(size) {
   scene.add(grid);
 }
 
-export function showGeometry(geometry) {
+let plainMaterial = null;
+let coloredMaterial = null;
+
+// colored: مادة ملوّنة اختيارية (تكستور أو ألوان رؤوس) — إن مُرّرت تُعرض افتراضيًا
+export function showGeometry(geometry, colored = null) {
   if (mesh) {
     scene.remove(mesh);
     mesh.geometry.dispose();
-    mesh.material.dispose();
+    if (plainMaterial) plainMaterial.dispose();
+    if (coloredMaterial && coloredMaterial !== colored) {
+      if (coloredMaterial.map) coloredMaterial.map.dispose();
+      coloredMaterial.dispose();
+    }
   }
-  const mat = new THREE.MeshStandardMaterial({
+  plainMaterial = new THREE.MeshStandardMaterial({
     color: 0x7fb3ff, metalness: 0.05, roughness: 0.6,
     side: THREE.DoubleSide, flatShading: !geometry.attributes.normal,
   });
-  mesh = new THREE.Mesh(geometry, mat);
+  coloredMaterial = colored || null;
+  mesh = new THREE.Mesh(geometry, coloredMaterial || plainMaterial);
   scene.add(mesh);
   fitView();
 }
+
+// بدّل بين عرض الألوان والشكل الهندسي؛ يرجّع true إن صار العرض ملوّنًا
+export function toggleColor() {
+  if (!mesh || !coloredMaterial) return false;
+  mesh.material = (mesh.material === coloredMaterial) ? plainMaterial : coloredMaterial;
+  mesh.material.wireframe = false;
+  return mesh.material === coloredMaterial;
+}
+
+export function hasColor() { return !!coloredMaterial; }
 
 export function refresh() {
   if (mesh) {
