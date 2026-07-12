@@ -11,7 +11,8 @@ let motionEnabled = false;
 
 export function initCapture(toast) {
   for (const id of ['camera', 'camera-off', 'btn-start-camera', 'btn-stop-camera', 'btn-enable-motion',
-    'btn-shoot', 'btn-export-zip', 'btn-clear-shots', 'thumbs', 'shot-count', 'coverage-pct', 'coverage-ring']) {
+    'btn-shoot', 'btn-export-zip', 'btn-clear-shots', 'thumbs', 'shot-count', 'coverage-pct', 'coverage-ring',
+    'import-photos']) {
     els[id] = document.getElementById(id);
   }
 
@@ -21,6 +22,10 @@ export function initCapture(toast) {
   els['btn-export-zip'].addEventListener('click', () => exportZip(toast));
   els['btn-clear-shots'].addEventListener('click', clearShots);
   els['btn-enable-motion'].addEventListener('click', () => requestMotion(toast));
+  els['import-photos'].addEventListener('change', (e) => {
+    importPhotos(e.target.files, toast);
+    e.target.value = '';
+  });
 
   // iOS يتطلب طلب إذن صريح لحساس الاتجاه
   if (typeof DeviceOrientationEvent !== 'undefined' &&
@@ -84,6 +89,15 @@ function onOrientation(e) {
   }
 }
 
+// يضيف صورة واحدة إلى القائمة (من الكاميرا أو من الاستوديو)
+function addShot(blob, shotHeading) {
+  const url = URL.createObjectURL(blob);
+  shots.push({ blob, url, heading: shotHeading });
+  addThumb(shots.length - 1, url);
+  updateStats();
+  drawRing();
+}
+
 function shoot(toast) {
   const video = els.camera;
   if (!video.videoWidth) return;
@@ -93,14 +107,18 @@ function shoot(toast) {
   canvas.getContext('2d').drawImage(video, 0, 0);
   canvas.toBlob(blob => {
     if (!blob) return;
-    const url = URL.createObjectURL(blob);
-    shots.push({ blob, url, heading });
-    addThumb(shots.length - 1, url);
-    updateStats();
-    drawRing();
+    addShot(blob, heading);
     if (navigator.vibrate) navigator.vibrate(30);
     if (shots.length === 40) toast('ممتاز! 40 صورة — أكمل دورة من زاوية أعلى 👍');
   }, 'image/jpeg', 0.92);
+}
+
+// استيراد صور من الاستوديو (مصوّرة بأي كاميرا)
+function importPhotos(files, toast) {
+  const imgs = [...files].filter(f => f.type.startsWith('image/'));
+  if (!imgs.length) return;
+  for (const f of imgs) addShot(f, null);
+  toast(`تمت إضافة ${imgs.length.toLocaleString('ar-SA')} صورة — الإجمالي ${shots.length.toLocaleString('ar-SA')}`);
 }
 
 function addThumb(i, url) {
