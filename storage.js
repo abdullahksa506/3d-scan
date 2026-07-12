@@ -6,9 +6,11 @@ const BUCKET = process.env.SUPABASE_BUCKET || 'scans';
 let backend = null;
 
 function initSupabase() {
-  // نظّف القيم: أزل المسافات والشرطة المائلة الزائدة في نهاية الرابط
-  // (الشرطة الزائدة تسبب خطأ "Invalid path specified in request URL")
-  const url = (process.env.SUPABASE_URL || '').trim().replace(/\/+$/, '');
+  // نظّف الرابط: أبقِ الأساس فقط (scheme://host) وأزل أي مسار زائد مثل
+  // /rest/v1/ أو شرطة نهائية — وإلا يظهر خطأ "Invalid path specified..."
+  const rawUrl = (process.env.SUPABASE_URL || '').trim();
+  let url = rawUrl.replace(/\/+$/, '');
+  try { url = new URL(rawUrl).origin; } catch { /* أبقِ المنظّف بالشرطة */ }
   const key = (process.env.SUPABASE_SERVICE_KEY || '').trim();
   if (!url || !key) return null;
   const { createClient } = require('@supabase/supabase-js');
