@@ -10,3 +10,9 @@ services:
       # وضعها هنا في Render وفي إعداد الوكيل. لا يُحفظ في الكود أبدًا.
       - key: AGENT_TOKEN
         generateValue: true
+      # المعرض الدائم (Supabase Storage) — اختياري. املأ القيمتين من مشروع
+      # Supabase (Settings → API): رابط المشروع ومفتاح service_role.
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false

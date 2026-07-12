@@ -9,6 +9,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const { zipSync } = require('fflate');
+const storage = require('./storage');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -144,6 +145,12 @@ app.post('/api/agent/result/:id', agentAuth,
     touch(job);
     log(`✅ [${job.id}] وصل النموذج (${Math.round(req.body.length / 1024)} كيلوبايت) — جاهز`);
     res.json({ ok: true });
+    // احفظه في المعرض الدائم (بدون تعطيل الرد إن فشل)
+    if (storage.enabled()) {
+      storage.saveScan(job.id, job.result)
+        .then(() => log(`💾 [${job.id}] حُفظ في المعرض`))
+        .catch(e => log(`⚠️  [${job.id}] فشل الحفظ في المعرض: ${e.message}`));
+    }
   });
 
 // أبلغ عن فشل المعالجة
@@ -155,6 +162,43 @@ app.post('/api/agent/fail/:id', agentAuth, express.json(), (req, res) => {
   touch(job);
   log(`❌ [${job.id}] فشل: ${job.error}`);
   res.json({ ok: true });
+});
+
+// ============ المعرض الدائم (Supabase) ============
+
+// قائمة المسحات المحفوظة
+app.get('/api/scans', async (req, res) => {
+  if (!storage.enabled()) return res.json({ enabled: false, scans: [] });
+  try {
+    res.json({ enabled: true, scans: await storage.listScans() });
+  } catch (e) {
+    res.status(502).json({ enabled: true, error: e.message, scans: [] });
+  }
+});
+
+// تنزيل مسحة محفوظة (ZIP)
+app.get('/api/scans/:id', async (req, res) => {
+  if (!storage.enabled()) return res.status(503).json({ error: 'المعرض غير مفعّل' });
+  try {
+    const buf = await storage.getScan(req.params.id);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${req.params.id}.zip"`);
+    res.end(buf);
+  } catch (e) {
+    res.status(404).json({ error: e.message });
+  }
+});
+
+// حذف مسحة
+app.delete('/api/scans/:id', async (req, res) => {
+  if (!storage.enabled()) return res.status(503).json({ error: 'المعرض غير مفعّل' });
+  try {
+    await storage.deleteScan(req.params.id);
+    log(`🗑️  [${req.params.id}] حُذف من المعرض`);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
 });
 
 // ============ الملفات الثابتة ============
@@ -169,5 +213,5 @@ app.use(express.static(__dirname, {
 }));
 
 app.listen(PORT, () => {
-  console.log(`3d-scan server on :${PORT} — المعالجة المحلية ${AGENT_TOKEN ? 'مفعّلة ✓' : 'غير مضبوطة (عيّن AGENT_TOKEN) ✗'}`);
+  console.log(`3d-scan server on :${PORT} — المعالجة المحلية ${AGENT_TOKEN ? 'مفعّلة ✓' : 'غير مضبوطة ✗'} — المعرض ${storage.enabled() ? `مفعّل (${storage.kind()}) ✓` : 'غير مضبوط ✗'}`);
 });

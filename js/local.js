@@ -1,7 +1,7 @@
 // المعالجة على جهازك: يرفع صور الالتقاط إلى الخادم (طابور مهام)، ويتابع
 // حتى يعالجها كمبيوترك المنزلي بـ RealityScan ويرفع النموذج، ثم يفتحه تلقائيًا.
-import { unzipSync } from '../vendor/fflate/fflate.module.js';
 import { getShots } from './capture.js';
+import { openModelFromZip } from './modelzip.js';
 
 const POLL_MS = 8000;             // متابعة حالة المهمة
 const AGENT_POLL_MS = 5000;       // متابعة اتصال الكمبيوتر
@@ -196,21 +196,12 @@ async function downloadModel(jobId) {
     const r = await fetch(`api/local/result/${jobId}`);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const zipBuf = new Uint8Array(await r.arrayBuffer());
-    const files = unzipSync(zipBuf);
-
-    const priority = ['glb', 'gltf', 'obj', 'stl', 'ply', 'usdz'];
-    let found = null;
-    for (const ext of priority) {
-      const name = Object.keys(files).find(f => f.toLowerCase().endsWith('.' + ext) && !f.startsWith('__MACOSX'));
-      if (name) { found = { ext, data: files[name] }; break; }
-    }
-    if (!found) throw new Error('لم يتم العثور على ملف نموذج داخل الحزمة');
+    openModelFromZip(zipBuf, `scan-${jobId.slice(-6)}`);
 
     setStatus('✅ تم! النموذج فُتح في تبويب «المعاينة»');
     toast('نموذج المسح جاهز ✓');
-    window.dispatchEvent(new CustomEvent('import-model-buffer', {
-      detail: { buffer: found.data.buffer, filename: `scan-${jobId.slice(-6)}.${found.ext}` },
-    }));
+    // نبّه المعرض ليحدّث قائمته (المسحة صارت محفوظة)
+    window.dispatchEvent(new CustomEvent('scan-saved'));
     updateButton();
   } catch (e) {
     setStatus(`❌ فشل التنزيل: ${e.message}`);

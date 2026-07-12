@@ -10,6 +10,7 @@ import { exportSTL, exportOBJ, export3MF } from './exporters.js';
 import { initCapture } from './capture.js';
 import { initCalc, recalc } from './calc.js';
 import { initLocal } from './local.js';
+import { initGallery } from './gallery.js';
 
 // ---------- الحالة ----------
 let geometry = null;   // BufferGeometry الحالي (بالملليمتر)
@@ -309,6 +310,7 @@ $('btn-export-3mf').addEventListener('click', () => geometry && (export3MF(geome
 initCapture(toast);
 initCalc(() => stats);
 initLocal(toast);
+initGallery(toast);
 
 // استقبال نموذج جاهز من المعالجة السحابية → فتحه والانتقال للمعاينة
 window.addEventListener('import-model-buffer', async (e) => {

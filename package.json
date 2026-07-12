@@ -10,6 +10,7 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.110.2",
     "express": "^4.21.0",
     "fflate": "^0.8.3",
     "multer": "^2.0.1"
