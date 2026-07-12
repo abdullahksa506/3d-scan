@@ -6,8 +6,10 @@ const BUCKET = process.env.SUPABASE_BUCKET || 'scans';
 let backend = null;
 
 function initSupabase() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_KEY;
+  // نظّف القيم: أزل المسافات والشرطة المائلة الزائدة في نهاية الرابط
+  // (الشرطة الزائدة تسبب خطأ "Invalid path specified in request URL")
+  const url = (process.env.SUPABASE_URL || '').trim().replace(/\/+$/, '');
+  const key = (process.env.SUPABASE_SERVICE_KEY || '').trim();
   if (!url || !key) return null;
   const { createClient } = require('@supabase/supabase-js');
   const client = createClient(url, key, { auth: { persistSession: false } });
@@ -19,16 +21,16 @@ function initSupabase() {
       if (error) throw new Error(error.message);
     },
     async list() {
-      const { data, error } = await client.storage.from(BUCKET)
-        .list('', { limit: 1000, sortBy: { column: 'created_at', order: 'desc' } });
+      const { data, error } = await client.storage.from(BUCKET).list('', { limit: 1000 });
       if (error) throw new Error(error.message);
-      return data
+      return (data || [])
         .filter(o => o.name.endsWith('.zip'))
         .map(o => ({
           id: o.name.replace(/\.zip$/, ''),
           createdAt: o.created_at || o.updated_at || null,
           size: o.metadata && o.metadata.size != null ? o.metadata.size : null,
-        }));
+        }))
+        .sort((a, b) => (String(a.createdAt) < String(b.createdAt) ? 1 : -1));
     },
     async get(id) {
       const { data, error } = await client.storage.from(BUCKET).download(`${id}.zip`);
