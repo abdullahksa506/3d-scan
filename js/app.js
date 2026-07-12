@@ -7,15 +7,17 @@ import { mergeGeometries } from '../vendor/three/examples/jsm/utils/BufferGeomet
 import { initViewer, showGeometry, fitView, toggleWireframe, toggleColor, hasColor, refresh } from './viewer.js';
 import { analyzeGeometry, mergeByPosition } from './analysis.js';
 import { exportSTL, exportOBJ, export3MF } from './exporters.js';
+import { autoCropFloor } from './floor.js';
 import { initCapture } from './capture.js';
 import { initCalc, recalc } from './calc.js';
 import { initLocal } from './local.js';
 import { initGallery } from './gallery.js';
 
 // ---------- الحالة ----------
-let geometry = null;   // BufferGeometry الحالي (بالملليمتر)
-let stats = null;      // نتيجة آخر فحص
+let geometry = null;         // BufferGeometry الحالي (بالملليمتر)
+let stats = null;            // نتيجة آخر فحص
 let modelName = 'model';
+let coloredMaterial = null;  // مادة ملوّنة (تكستور/ألوان رؤوس) إن وُجدت
 
 // ---------- أدوات عامة ----------
 const $ = id => document.getElementById(id);
@@ -184,11 +186,12 @@ function autoDetectUnits(ext) {
   }
 }
 
-function setGeometry(geo, name, coloredMaterial = null) {
+function setGeometry(geo, name, colored = null) {
   geometry = geo;
+  coloredMaterial = colored;
   modelName = name || 'model';
   geometry.computeBoundingBox();
-  showGeometry(geometry, coloredMaterial);
+  showGeometry(geometry, colored);
   $('viewer-empty').style.display = 'none';
   $('btn-wireframe').disabled = false;
   $('btn-fit').disabled = false;
@@ -336,8 +339,22 @@ $('btn-merge-verts').addEventListener('click', () => {
   const before = geometry.attributes.position.count;
   const merged = mergeByPosition(geometry);
   merged.computeVertexNormals();
-  setGeometry(merged, modelName);
+  setGeometry(merged, modelName, coloredMaterial);
   toast(`دمج النقاط: ${before.toLocaleString('ar-SA')} ← ${merged.attributes.position.count.toLocaleString('ar-SA')}`);
+});
+
+$('btn-crop-floor').addEventListener('click', () => {
+  if (!geometry) return;
+  const beforeTris = Math.floor(geometry.attributes.position.count / 3);
+  const cropped = autoCropFloor(geometry);
+  if (!cropped) {
+    toast('ما قدرت أميّز الأرضية تلقائيًا — النموذج ما فيه سطح مستوٍ واضح');
+    return;
+  }
+  const afterTris = Math.floor(cropped.attributes.position.count / 3);
+  setGeometry(cropped, modelName, coloredMaterial);
+  fitView();
+  toast(`تم قص الأرضية: ${beforeTris.toLocaleString('ar-SA')} ← ${afterTris.toLocaleString('ar-SA')} مثلث`);
 });
 
 function afterEdit() {

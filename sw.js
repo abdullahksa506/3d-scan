@@ -1,5 +1,5 @@
 // Service Worker — يخزّن التطبيق للعمل بدون اتصال
-const CACHE = 'scan3d-v5';
+const CACHE = 'scan3d-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -13,6 +13,7 @@ const ASSETS = [
   './js/local.js',
   './js/gallery.js',
   './js/modelzip.js',
+  './js/floor.js',
   './js/materials.js',
   './manifest.webmanifest',
   './icons/icon.svg',
